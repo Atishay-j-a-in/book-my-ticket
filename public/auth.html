@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stellar Seat Booking - Auth</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap");
+
+    body {
+      font-family: "Outfit", sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+  <div class="max-w-5xl w-full bg-slate-800/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-10 border border-slate-700/50">
+    <div class="grid md:grid-cols-2 gap-8 items-stretch">
+      <div class="rounded-2xl bg-slate-900/40 border border-slate-700/50 p-8 flex flex-col justify-center">
+        <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tight">
+          ChaiCode Cinema
+        </h1>
+        <p class="text-slate-300 mt-4 text-lg">Book your perfect seat in seconds.</p>
+        <p class="text-slate-400 mt-2">Create your account or sign in to continue.</p>
+      </div>
+
+      <div class="rounded-2xl bg-slate-900/40 border border-slate-700/50 p-6 md:p-8">
+        <div class="flex bg-slate-950/60 rounded-xl p-1 border border-slate-700 mb-6">
+          <button id="loginTab" type="button" class="w-1/2 rounded-lg px-4 py-2 text-sm font-semibold bg-emerald-500 text-white transition">Login</button>
+          <button id="registerTab" type="button" class="w-1/2 rounded-lg px-4 py-2 text-sm font-semibold text-slate-300 transition">Register</button>
+        </div>
+
+        <p id="status" class="min-h-6 text-sm text-slate-300 mb-3"></p>
+
+        <form id="loginForm" class="space-y-4">
+          <div>
+            <label class="text-sm text-slate-300">Email</label>
+            <input id="loginEmail" type="email" required class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+          </div>
+          <div>
+            <label class="text-sm text-slate-300">Password</label>
+            <input id="loginPassword" type="password" required minlength="4" maxlength="20" class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+          </div>
+          <button type="submit" class="w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 transition">Login</button>
+        </form>
+
+        <form id="registerForm" class="space-y-4 hidden">
+          <div>
+            <label class="text-sm text-slate-300">Name</label>
+            <input id="registerName" type="text" required minlength="3" maxlength="100" class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+          </div>
+          <div>
+            <label class="text-sm text-slate-300">Email</label>
+            <input id="registerEmail" type="email" required class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+          </div>
+          <div>
+            <label class="text-sm text-slate-300">Password</label>
+            <input id="registerPassword" type="password" required minlength="4" maxlength="20" class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+          </div>
+          <button type="submit" class="w-full rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-bold py-3 transition">Register</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const loginTab = document.getElementById("loginTab");
+    const registerTab = document.getElementById("registerTab");
+    const loginForm = document.getElementById("loginForm");
+    const registerForm = document.getElementById("registerForm");
+    const statusEl = document.getElementById("status");
+
+    async function refreshAccessToken() {
+      try {
+        const res = await fetch("/refresh", {
+          method: "POST",
+          credentials: "include"
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success || !data.data?.accessToken) {
+          return null;
+        }
+
+        const newToken = data.data.accessToken;
+        localStorage.setItem("accessToken", newToken);
+        document.cookie = `accessToken=${encodeURIComponent(newToken)}; path=/; SameSite=Lax`;
+        return newToken;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    (async function autoRedirectIfLoggedIn() {
+      let token = localStorage.getItem("accessToken");
+      if (!token) return;
+
+      try {
+        let probe = await fetch("/theatre", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (probe.status === 401) {
+          token = await refreshAccessToken();
+          if (!token) {
+            localStorage.removeItem("accessToken");
+            document.cookie = "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+            return;
+          }
+
+          probe = await fetch("/theatre", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+        }
+
+        if (!probe.ok) {
+          localStorage.removeItem("accessToken");
+          document.cookie = "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+          return;
+        }
+
+        document.cookie = `accessToken=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+        window.location.href = "/theatre";
+      } catch (error) {
+        localStorage.removeItem("accessToken");
+      }
+    })();
+
+    function setStatus(message, isError) {
+      statusEl.textContent = message || "";
+      statusEl.className = `min-h-6 text-sm mb-3 ${isError ? "text-rose-400" : "text-emerald-400"}`;
+    }
+
+    function switchTab(type) {
+      const isLogin = type === "login";
+      loginForm.classList.toggle("hidden", !isLogin);
+      registerForm.classList.toggle("hidden", isLogin);
+
+      loginTab.className = isLogin
+        ? "w-1/2 rounded-lg px-4 py-2 text-sm font-semibold bg-emerald-500 text-white transition"
+        : "w-1/2 rounded-lg px-4 py-2 text-sm font-semibold text-slate-300 transition";
+
+      registerTab.className = !isLogin
+        ? "w-1/2 rounded-lg px-4 py-2 text-sm font-semibold bg-cyan-500 text-white transition"
+        : "w-1/2 rounded-lg px-4 py-2 text-sm font-semibold text-slate-300 transition";
+
+      setStatus("", false);
+    }
+
+    loginTab.addEventListener("click", () => switchTab("login"));
+    registerTab.addEventListener("click", () => switchTab("register"));
+
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setStatus("", false);
+
+      try {
+        const payload = {
+          name: document.getElementById("registerName").value.trim(),
+          email: document.getElementById("registerEmail").value.trim(),
+          password: document.getElementById("registerPassword").value
+        };
+
+        const res = await fetch("/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          setStatus(data.message || "Registration failed", true);
+          return;
+        }
+
+        setStatus("Registered successfully. Please login.", false);
+        registerForm.reset();
+        switchTab("login");
+      } catch (error) {
+        setStatus("Registration failed", true);
+      }
+    });
+
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setStatus("", false);
+
+      try {
+        const payload = {
+          email: document.getElementById("loginEmail").value.trim(),
+          password: document.getElementById("loginPassword").value
+        };
+
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          setStatus(data.message || "Login failed", true);
+          return;
+        }
+
+        if (data.data && data.data.accessToken) {
+          localStorage.setItem("accessToken", data.data.accessToken);
+          document.cookie = `accessToken=${encodeURIComponent(data.data.accessToken)}; path=/; SameSite=Lax`;
+        }
+
+        window.location.href = "/theatre";
+      } catch (error) {
+        setStatus("Login failed", true);
+      }
+    });
+  </script>
+</body>
+
+</html>
