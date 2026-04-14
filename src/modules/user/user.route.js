@@ -58,7 +58,7 @@ router.put("/:id/:name",authenticate, async (req, res) => {
     conn.release(); // release the connection back to the pool (so we do not keep the connection open unnecessarily)
     ApiResponse.ok(res,"seat booked",200,updateResult.rows[0]);
   } catch (ex) {
-    
+    await conn.query("ROLLBACK"); 
     throw ApiError.failed("failed to book seat")
   }
 });
